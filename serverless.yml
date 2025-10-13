@@ -1,0 +1,59 @@
+# "org" ensures this Service is used with the correct Serverless Framework Access Key.
+org: yanameal1   # Your organization name on the Serverless Dashboard
+# "service" is the name of this project. This will also be added to your AWS resource names.
+service: serverless-nodejs-crud   # The specific name of this Lambda service.
+
+# This defines how your Lambda runs and on which cloud provider.
+provider:
+  name: aws                 # Cloud provider (AWS, Azure, Google Cloud, etc.)
+  runtime: nodejs20.x
+  region: us-east-1
+  stage: ${opt:stage, 'dev'}               # Deployment environment (e.g., dev, prod).
+  memorySize: 1024           # Amount of memory in MB your Lambda has access to. Memory in MB per Lambda (affects CPU power too).
+  timeout: 10               # Timeout in seconds per Lambda (maximum is 900 seconds).
+  environment:
+    NODE_ENV: ${self:provider.stage}
+    MONGODB_URL: 'mongodb+srv://umairezmd_db_user:VUfbexqpNLL1FLWq@learningcluster.lkm03fx.mongodb.net/serverless?retryWrites=true&w=majority&appName=LearningCluster'
+    # Redis Configuration
+    REDIS_USERNAME: 'default'
+    REDIS_PASSWORD: 'ruqpioGFumJdxTuRo2FvMrdgZEDnOPlt'
+    REDIS_SOCKET_HOST: 'redis-17806.c267.us-east-1-4.ec2.redns.redis-cloud.com'
+    REDIS_SOCKET_PORT: 17806
+
+# It mimics API Gateway + Lambda behavior in local dev. serverless-offline allows you to run and test Lambdas locally
+plugins:
+  - serverless-offline
+
+# Defines how your code is zipped and deployed to AWS Lambda.
+package:
+  individually: true             # Each function is packaged separately (smaller zip files, faster deployments).
+  patterns:                      # Files/folders to include or exclude from deployment.
+    - '!node_modules/aws-sdk/**' # already available in Lambda runtime
+
+functions:
+  api:
+    handler: handler.handler
+    events:
+      # Health check
+      - httpApi:
+          path: /health
+          method: get
+      - httpApi:
+          path: /hello
+          method: get
+      # Product Routes
+      - httpApi:
+          path: /products/create
+          method: post
+      - httpApi:
+          path: /products/all
+          method: get
+      - httpApi:
+          path: /products/detail/{id}
+          method: get
+      - httpApi:
+          path: /products/update/{id}
+          method: put
+      - httpApi:
+          path: /products/delete/{id}
+          method: delete

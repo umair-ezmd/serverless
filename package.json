@@ -1,0 +1,14 @@
+{
+  "name": "serverless-nodejs-crud",
+  "version": "1.0.0",
+  "description": "",
+  "dependencies": {
+    "express": "^4.19.2",
+    "ioredis": "^5.8.1",
+    "mongoose": "^8.19.1",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "serverless-offline": "^14.4.0"
+  }
+}
