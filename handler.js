@@ -1,11 +1,33 @@
 const serverless = require("serverless-http");
 const express = require("express");
 const mongoose = require("mongoose");
+const cors = require("cors");
 const { connectDB } = require("./config/db");
 const productRoutes = require("./routes/product");
+const authRoutes = require("./routes/auth");
 const redis = require("./config/redis");
+const { getUserFromContext } = require("./utils/jwt");
+const { 
+  generalLimiter,
+  securityHeaders,
+  corsOptions,
+  sanitizeRequest,
+  requestLogger,
+  errorResponse
+} = require("./middleware/security");
 
 const app = express();
+
+// Security middleware
+app.use(securityHeaders);
+app.use(cors(corsOptions));
+app.use(requestLogger);
+app.use(sanitizeRequest);
+
+// Rate limiting
+app.use(generalLimiter);
+
+// Body parsing middleware
 app.use((req, res, next) => {
   if (req.method === "GET" || req.method === "HEAD") {
     return next(); // Skip body parsing
@@ -21,8 +43,7 @@ const initializeDB = async () => {
   if (!dbInitialized) {
     try {
       await connectDB();
-      dbInitialized = true;
-      console.log("Database initialized on startup");
+      dbInitialized = true; 
     } catch (error) {
       console.error("Failed to initialize database on startup:", error);
     }
@@ -34,14 +55,13 @@ initializeDB();
 
 // Database connection middleware
 app.use(async (req, res, next) => {
-  try {
+  try { 
     const redisState = await redis.get("mongo:connection:status");
 
     // 🚀 FAST PATH: Redis says DB is live and mongoose reflects it
     if (redisState === "connected" && mongoose.connection.readyState === 1) {
       return next();
     }
-
     // Else → connect normally
     await connectDB();
     next();
@@ -54,7 +74,23 @@ app.use(async (req, res, next) => {
   }
 });
 
+// Middleware to add user context from authorizer
+app.use((req, res, next) => {
+  console.log("user context middleware");
+  // Store the original event for access in routes
+  req.apiGateway = { event: req.apiGateway?.event || {} };
+  
+  // Add user context if available
+  const user = getUserFromContext(req.apiGateway.event); 
+  if (user) {
+    req.user = user;
+  }
+  
+  next();
+});
+
 // Routes
+app.use("/auth", authRoutes);
 app.use("/products", productRoutes);
 
 app.get("/hello", async (req, res) => {
@@ -62,6 +98,22 @@ app.get("/hello", async (req, res) => {
     message: "Hello from serverless!",
     database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
   });
+});
+
+// Test connection endpoint
+app.get("/test-db", async (req, res) => {
+  try {
+    await connectDB();
+    res.json({ 
+      message: "Database connection successful",
+      readyState: mongoose.connection.readyState
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      error: "Database connection failed",
+      message: error.message
+    });
+  }
 });
 
 // Health check endpoint
@@ -83,23 +135,7 @@ app.get("/health", async (req, res) => {
     });
   }
 });
-
-// Test connection endpoint
-app.get("/test-db", async (req, res) => {
-  try {
-    await connectDB();
-    res.json({ 
-      message: "Database connection successful",
-      readyState: mongoose.connection.readyState
-    });
-  } catch (error) {
-    res.status(500).json({ 
-      error: "Database connection failed",
-      message: error.message
-    });
-  }
-});
-
+ 
 app.use((req, res, next) => {
   return res.status(404).json({
     error: "Not Found",
@@ -107,13 +143,17 @@ app.use((req, res, next) => {
 });
 
 // Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('Unhandled error:', error);
-  res.status(500).json({
-    error: "Internal Server Error",
-    message: process.env.NODE_ENV === 'dev' ? error.message : 'Something went wrong'
-  });
+app.use(errorResponse);
+
+
+exports.handler = serverless(app, {
+  // Ensure we have access to the original event
+  request: function(request, event, context) {
+    request.context = context;
+    request.event = event;
+    request.apiGateway = {
+      event: event,
+      context: context
+    };
+  }
 });
-
-
-exports.handler = serverless(app);

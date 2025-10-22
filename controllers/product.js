@@ -2,7 +2,8 @@ const Product = require("../models/product");
 
 // Create Product
 exports.createProduct = async (req, res) => {
-  try {
+  try { 
+    req.body.user = req.user.userId;
     const product = await Product.create(req.body);
     return res.status(201).json({ message: "Product created", product });
   } catch (error) {
@@ -34,6 +35,10 @@ exports.getProductById = async (req, res) => {
 // Update Product
 exports.updateProduct = async (req, res) => {
   try {
+    let prod = await Product.findById(req.params.id).lean();
+    if(String(prod.user) !== String(req.user.userId)){
+      return res.status(404).json({ error: "Unauthorized" });
+    }
     const product = await Product.findByIdAndUpdate(
       req.params.id,
       req.body,
@@ -49,6 +54,10 @@ exports.updateProduct = async (req, res) => {
 // Delete Product
 exports.deleteProduct = async (req, res) => {
   try {
+    let prod = await Product.findById(req.params.id).lean();
+    if(String(prod.user) !== String(req.user.userId)){
+      return res.status(404).json({ error: "Unauthorized" });
+    }
     const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) return res.status(404).json({ error: "Product not found" });
     return res.status(200).json({ message: "Product deleted" });

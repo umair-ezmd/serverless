@@ -1,7 +1,16 @@
 # "org" ensures this Service is used with the correct Serverless Framework Access Key.
 org: yanameal1   # Your organization name on the Serverless Dashboard
 # "service" is the name of this project. This will also be added to your AWS resource names.
-service: serverless-nodejs-crud   # The specific name of this Lambda service.
+service: serverless-nodejs   # The specific name of this Lambda service.
+
+# Custom naming configuration
+custom:
+  # Custom API Gateway name
+  apiGatewayName: ${self:service}-${sls:stage}
+  # Custom function names
+  authFunctionName: ${self:service}-${sls:stage}-auth
+  productFunctionName: ${self:service}-${sls:stage}-products
+  authorizerFunctionName: ${self:service}-${sls:stage}-authorizer
 
 # This defines how your Lambda runs and on which cloud provider.
 provider:
@@ -10,7 +19,9 @@ provider:
   region: us-east-1
   stage: ${opt:stage, 'dev'}               # Deployment environment (e.g., dev, prod).
   memorySize: 1024           # Amount of memory in MB your Lambda has access to. Memory in MB per Lambda (affects CPU power too).
-  timeout: 10               # Timeout in seconds per Lambda (maximum is 900 seconds).
+  timeout: 10    
+  # Custom API Gateway name
+  apiName: ${self:custom.apiGatewayName}           # Timeout in seconds per Lambda (maximum is 900 seconds).
   environment:
     NODE_ENV: ${self:provider.stage}
     MONGODB_URL: 'mongodb+srv://umairezmd_db_user:VUfbexqpNLL1FLWq@learningcluster.lkm03fx.mongodb.net/serverless?retryWrites=true&w=majority&appName=LearningCluster'
@@ -19,6 +30,20 @@ provider:
     REDIS_PASSWORD: 'ruqpioGFumJdxTuRo2FvMrdgZEDnOPlt'
     REDIS_SOCKET_HOST: 'redis-17806.c267.us-east-1-4.ec2.redns.redis-cloud.com'
     REDIS_SOCKET_PORT: 17806
+    # JWT Configuration
+    JWT_SECRET: 'thisajhewu!$##&*%6fhsddgfjfdswazv'
+    JWT_REFRESH_SECRET: '*&(^*%&$^#iu2whefsjvnxiudh)mfdvivjsns'
+    JWT_ACCESS_EXPIRES_IN: '15m'
+    JWT_REFRESH_EXPIRES_IN: '7d'
+
+  # Define the authorizer
+  httpApi:
+    authorizers:
+      customAuthorizer:
+        type: request
+        functionName: authorizer
+        # Enable caching if desired (optional)
+        resultTtlInSeconds: 0
 
 # It mimics API Gateway + Lambda behavior in local dev. serverless-offline allows you to run and test Lambdas locally
 plugins:
@@ -31,29 +56,93 @@ package:
     - '!node_modules/aws-sdk/**' # already available in Lambda runtime
 
 functions:
-  api:
+  # Lambda Authorizer
+  authorizer:
+    name: ${self:custom.authorizerFunctionName}
+    handler: authorizer.handler
+    timeout: 5
+    memorySize: 256
+
+  # Main API
+  auth:
+    name: ${self:custom.authFunctionName}
     handler: handler.handler
     events:
-      # Health check
+      # Public endpoints (no authentication required)
+      - httpApi:
+          path: /test-db
+          method: get
       - httpApi:
           path: /health
           method: get
       - httpApi:
           path: /hello
           method: get
-      # Product Routes
+      # Auth Public routes
+      - httpApi:
+          path: /auth/login
+          method: post
+      - httpApi:
+          path: /auth/register
+          method: post
+      - httpApi:
+          path: /auth/refresh-token
+          method: post
+      - httpApi:
+          path: /auth/request-password-reset
+          method: post
+      - httpApi:
+          path: /auth/reset-password
+          method: post
+      # Auth Protected routes
+      - httpApi:
+          path: /auth/profile
+          method: get
+          authorizer:
+            name: customAuthorizer 
+      - httpApi:
+          path: /auth/profile
+          method: put
+          authorizer:
+            name: customAuthorizer 
+      - httpApi:
+          path: /auth/change-password
+          method: put
+          authorizer:
+            name: customAuthorizer 
+      - httpApi:
+          path: /auth/logout
+          method: post
+          authorizer:
+            name: customAuthorizer 
+  
+  # Products Protected routes
+  products:
+    name: ${self:custom.productFunctionName}
+    handler: products.handler
+    events:
       - httpApi:
           path: /products/create
           method: post
+          authorizer:
+            name: customAuthorizer 
       - httpApi:
           path: /products/all
           method: get
+          authorizer:
+            name: customAuthorizer 
       - httpApi:
           path: /products/detail/{id}
           method: get
+          authorizer:
+            name: customAuthorizer 
       - httpApi:
           path: /products/update/{id}
           method: put
+          authorizer:
+            name: customAuthorizer 
       - httpApi:
           path: /products/delete/{id}
           method: delete
+          authorizer:
+            name: customAuthorizer 
