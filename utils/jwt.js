@@ -81,6 +81,7 @@ const generateSecureToken = (length = 32) => {
  
 // Extract user information from API Gateway authorizer context (Lambda event object) 
 const getUserFromContext = (event) => {  
+  console.log("event.requestContext?.authorizer: ", event.requestContext?.authorizer);
   // For HTTP API with Lambda Authorizer (your current setup)
   if (event.requestContext?.authorizer?.lambda) {
     return {

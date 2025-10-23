@@ -8,7 +8,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-i
  * Validates JWT tokens and returns IAM policy for API access
  */
 exports.handler = async (event) => {  
-  try {
+  try { 
     // Extract token from Authorization header
     const token = extractToken(event);
     
@@ -19,6 +19,7 @@ exports.handler = async (event) => {
 
     // Verify and decode the JWT token
     const decoded = jwt.verify(token, JWT_SECRET); 
+    console.log('Token decoded successfully for user:', decoded.sub || decoded.userId);
 
     // Generate IAM policy for successful authentication
     let policy = generatePolicy(decoded.sub || decoded.userId || 'user', 'Allow', event.routeArn || event.methodArn);
@@ -30,6 +31,7 @@ exports.handler = async (event) => {
       role: decoded.role || 'user'
     }; 
 
+    console.log('Authorization successful, returning policy');
     return policy;
 
   } catch (error) {
@@ -42,30 +44,49 @@ exports.handler = async (event) => {
  * Extract JWT token from Authorization header
  */
 function extractToken(event) {
+  console.log("event.identitySource: ", event.identitySource);
+  console.log("event.authorizationToken: ", event.authorizationToken); 
+
   if (Array.isArray(event.identitySource) && event.identitySource.length > 0) {
     const authHeader = event.identitySource[0];
-    return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    console.log("Using identitySource:", authHeader ? 'Token found' : 'Empty token');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.slice(7);
+    }
+    return authHeader;
   }
 
   if (event.authorizationToken) {
     const authHeader = event.authorizationToken;
-    return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+    console.log("Using authorizationToken:", authHeader ? 'Token found' : 'Empty token');
+    if (authHeader.startsWith('Bearer ')) {
+      return authHeader.slice(7);
+    }
+    return authHeader;
   }
 
   // For REQUEST authorizers
-  if (event.headers && event.headers.Authorization) {
-    const authHeader = event.headers.Authorization;
-    return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-  } 
+  // if (event.headers && event.headers.Authorization) {
+  //   const authHeader = event.headers.Authorization;
+  //   console.log("Using headers.Authorization:", authHeader);
+  //   return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  // } 
 
-  return null; 
- 
+  // For REQUEST authorizers with lowercase headers
+  // if (event.headers && event.headers.authorization) {
+  //   const authHeader = event.headers.authorization;
+  //   console.log("Using headers.authorization:", authHeader);
+  //   return authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  // }
+
+   console.log('No authorization token found in any expected location');
+  return null;  
 }
 
 /**
  * Generate IAM policy for API Gateway
  */
-function generatePolicy(principalId, effect, resource) { 
+function generatePolicy(principalId, effect, resource) {  
   const authResponse = {
     principalId: principalId
   };
@@ -84,5 +105,6 @@ function generatePolicy(principalId, effect, resource) {
     authResponse.policyDocument = policyDocument;
   }
 
+  console.log('Generated policy:', JSON.stringify(authResponse, null, 2));
   return authResponse;
 }

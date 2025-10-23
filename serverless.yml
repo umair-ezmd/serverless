@@ -42,6 +42,8 @@ provider:
       customAuthorizer:
         type: request
         functionName: authorizer
+        identitySource: 
+          - $request.header.Authorization
         # Enable caching if desired (optional)
         resultTtlInSeconds: 0
 
@@ -115,12 +117,7 @@ functions:
           method: post
           authorizer:
             name: customAuthorizer 
-  
-  # Products Protected routes
-  products:
-    name: ${self:custom.productFunctionName}
-    handler: products.handler
-    events:
+    # Products Protected routes
       - httpApi:
           path: /products/create
           method: post
